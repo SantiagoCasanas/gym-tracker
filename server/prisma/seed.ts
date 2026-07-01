@@ -6,25 +6,41 @@ dotenv.config();
 
 const prisma = new PrismaClient();
 
-const DEFAULT_SECTIONS = [
-  "Pecho",
-  "Espalda",
-  "Piernas",
-  "Hombros",
-  "Brazos",
-  "Core",
+// Global default sections with their category.
+// category ∈ { superior | inferior | core | cardio | otros }
+const DEFAULT_SECTIONS: { name: string; category: string }[] = [
+  { name: "Pecho", category: "superior" },
+  { name: "Espalda", category: "superior" },
+  { name: "Hombros", category: "superior" },
+  { name: "Brazos", category: "superior" },
+  { name: "Piernas", category: "inferior" },
+  { name: "Glúteos", category: "inferior" },
+  { name: "Pantorrillas", category: "inferior" },
+  { name: "Core", category: "core" },
+  { name: "Cardio", category: "cardio" },
 ];
 
+// Idempotent: upsert by (name) for the global default sections. Runs safely
+// multiple times — existing rows get their category refreshed, missing ones
+// are created. All are global (userId: null, isDefault: true).
 async function seedDefaultSections() {
-  for (const name of DEFAULT_SECTIONS) {
+  for (const { name, category } of DEFAULT_SECTIONS) {
     const existing = await prisma.bodySection.findFirst({
       where: { name, isDefault: true, userId: null },
     });
-    if (!existing) {
+    if (existing) {
+      if (existing.category !== category) {
+        await prisma.bodySection.update({
+          where: { id: existing.id },
+          data: { category },
+        });
+        console.log(`  ~ default section updated: ${name} → ${category}`);
+      }
+    } else {
       await prisma.bodySection.create({
-        data: { name, isDefault: true, userId: null },
+        data: { name, category, isDefault: true, userId: null },
       });
-      console.log(`  + default section created: ${name}`);
+      console.log(`  + default section created: ${name} (${category})`);
     }
   }
 }

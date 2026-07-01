@@ -1,24 +1,39 @@
 import { apiFetch } from "../api/client";
-import type { BodySection } from "models/index";
+import type { BodySection, SectionCategory } from "models/index";
 
 /**
  * Gestión de secciones corporales contra la API.
- * El servidor devuelve los 6 defaults globales primero + las custom del usuario
- * del token, y aplica el aislamiento por usuario. No se pasa userId.
+ * El servidor devuelve las globales (creadas por el admin) + las propias del
+ * usuario del token, cada una con su `category` y `scope` ("global" | "own").
+ * No se pasa userId: el aislamiento por usuario lo aplica el backend.
  */
 export const sectionService = {
-  /** Lista las secciones visibles (defaults + custom del usuario). */
+  /** Lista las secciones visibles (globales + propias del usuario). */
   async list(): Promise<BodySection[]> {
     return apiFetch<BodySection[]>("/sections");
   },
 
-  /** Crea una sección custom para el usuario del token y la devuelve. */
-  async create(name: string): Promise<BodySection> {
-    return apiFetch<BodySection>("/sections", { json: { name } });
+  /**
+   * Crea una sección. Si el usuario es ADMIN la crea global (visible a todos);
+   * si es MEMBER la crea privada. Requiere una categoría válida.
+   */
+  async create(name: string, category: SectionCategory): Promise<BodySection> {
+    return apiFetch<BodySection>("/sections", { json: { name, category } });
   },
 
-  /** Elimina una sección custom por id. */
+  /** Actualiza nombre y/o categoría de una sección. */
+  async update(
+    id: string,
+    changes: { name?: string; category?: SectionCategory }
+  ): Promise<BodySection> {
+    return apiFetch<BodySection>(`/sections/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      json: changes,
+    });
+  },
+
+  /** Elimina una sección por id (admin: globales; usuario: las suyas). */
   async remove(id: string): Promise<void> {
-    await apiFetch(`/sections/${id}`, { method: "DELETE" });
+    await apiFetch(`/sections/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
 };

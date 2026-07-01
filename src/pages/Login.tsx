@@ -1,14 +1,50 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "../context/SessionContext";
+import { authService } from "services/index";
 import ThemeToggle from "../components/ThemeToggle";
 
-/** Pantalla de inicio de sesión (email + contraseña). No hay registro abierto. */
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as
+  | string
+  | undefined;
+const GOOGLE_SRC = "https://accounts.google.com/gsi/client";
+
+/** Carga (una sola vez) el script de Google Identity Services. */
+function loadGoogleScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) {
+      resolve();
+      return;
+    }
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${GOOGLE_SRC}"]`
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () =>
+        reject(new Error("No se pudo cargar Google."))
+      );
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = GOOGLE_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("No se pudo cargar Google."));
+    document.head.appendChild(script);
+  });
+}
+
+/** Pantalla de inicio de sesión (email + contraseña, y Google si está configurado). */
 export default function Login() {
-  const { login } = useSession();
+  const { login, setSession } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
+  const googleEnabled = Boolean(GOOGLE_CLIENT_ID);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,6 +66,62 @@ export default function Login() {
       setSubmitting(false);
     }
   }
+
+  // Inicializa Google Identity Services y renderiza el botón oficial.
+  useEffect(() => {
+    if (!googleEnabled) return;
+    let cancelled = false;
+
+    async function handleCredential(response: { credential?: string }) {
+      const idToken = response?.credential;
+      if (!idToken) {
+        setError("No se pudo validar tu cuenta de Google.");
+        return;
+      }
+      setError(null);
+      try {
+        const { token, user } = await authService.google(idToken);
+        setSession(token, user);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("403") || /invitad/i.test(msg)) {
+          setError(
+            "No estás invitado. Pide al administrador que te invite."
+          );
+        } else {
+          setError("No se pudo validar tu cuenta de Google.");
+        }
+      }
+    }
+
+    loadGoogleScript()
+      .then(() => {
+        if (cancelled || !window.google?.accounts?.id) return;
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleCredential,
+        });
+        if (googleBtnRef.current) {
+          google.accounts.id.renderButton(googleBtnRef.current, {
+            type: "standard",
+            theme: "outline",
+            size: "large",
+            shape: "pill",
+            text: "signin_with",
+            logo_alignment: "center",
+            width: 280,
+          });
+        }
+      })
+      .catch(() => {
+        // Si el script no carga, dejamos el login por contraseña intacto.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleEnabled]);
 
   return (
     <div className="app-shell gate">
@@ -74,6 +166,15 @@ export default function Login() {
         >
           {submitting ? "Ingresando…" : "Ingresar"}
         </button>
+
+        {googleEnabled && (
+          <>
+            <div className="auth-divider">
+              <span>o</span>
+            </div>
+            <div className="google-btn" ref={googleBtnRef} />
+          </>
+        )}
       </form>
 
       <p className="muted profile-hint">

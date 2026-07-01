@@ -15,4 +15,14 @@ export const userService = {
       { method: "PUT", json: { newPassword } }
     );
   },
+
+  /**
+   * Elimina un usuario y toda su data (solo ADMIN).
+   * El backend rechaza con 400 el auto-borrado y borrar al último admin.
+   */
+  async remove(id: string): Promise<void> {
+    await apiFetch<{ ok: true }>(`/users/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
 };

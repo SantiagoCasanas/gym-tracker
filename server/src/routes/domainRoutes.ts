@@ -5,6 +5,7 @@ import { upload } from "../lib/upload";
 import {
   listSections,
   createSection,
+  updateSection,
   deleteSection,
 } from "../controllers/sectionController";
 import {
@@ -34,6 +35,7 @@ router.use(requireAuth);
 // Sections
 router.get("/sections", asyncHandler(listSections));
 router.post("/sections", asyncHandler(createSection));
+router.put("/sections/:id", asyncHandler(updateSection));
 router.delete("/sections/:id", asyncHandler(deleteSection));
 
 // Exercises (nested under section + top-level)

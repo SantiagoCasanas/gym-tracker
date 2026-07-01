@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin } from "../middleware/auth";
 import {
   listUsers,
   adminResetPassword,
+  deleteUser,
 } from "../controllers/userController";
 
 const router = Router();
@@ -16,5 +17,6 @@ router.put(
   requireAdmin,
   asyncHandler(adminResetPassword)
 );
+router.delete("/:id", requireAuth, requireAdmin, asyncHandler(deleteUser));
 
 export default router;

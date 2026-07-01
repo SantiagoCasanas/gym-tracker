@@ -24,6 +24,18 @@ export const authService = {
     });
   },
 
+  /**
+   * Inicia sesión con un idToken de Google (Google Identity Services).
+   * Devuelve el mismo shape que `login`. Errores del backend:
+   * 401 (token inválido), 403 (email no invitado), 503 (Google no configurado).
+   */
+  async google(idToken: string): Promise<AuthResult> {
+    return apiFetch<AuthResult>("/auth/google", {
+      json: { idToken },
+      skipAuth: true,
+    });
+  },
+
   /** Usuario actual a partir del token. La API lo envuelve en `{ user }`. */
   async me(): Promise<User> {
     const res = await apiFetch<{ user: User }>("/auth/me");

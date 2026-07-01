@@ -20,6 +20,13 @@ export default function Users() {
   const [error, setError] = useState<string | null>(null);
   const [doneId, setDoneId] = useState<string | null>(null);
 
+  // Estado del borrado de usuario.
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -40,6 +47,7 @@ export default function Users() {
     setPassword("");
     setError(null);
     setDoneId(null);
+    setDeleteError(null);
   }
 
   async function submit(e: React.FormEvent, target: AdminUser) {
@@ -65,6 +73,29 @@ export default function Users() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function remove(target: AdminUser) {
+    setDeleteError(null);
+    const ok = window.confirm(
+      `¿Eliminar a ${target.name}? Se borrará su cuenta y todos sus datos. Esta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+    setDeletingId(target.id);
+    try {
+      await userService.remove(target.id);
+      setList((cur) => cur.filter((u) => u.id !== target.id));
+    } catch (err) {
+      setDeleteError({
+        id: target.id,
+        message:
+          err instanceof Error
+            ? err.message
+            : "No se pudo eliminar el usuario.",
+      });
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -136,13 +167,28 @@ export default function Users() {
                   {doneId === u.id && (
                     <p className="form__hint">Contraseña actualizada.</p>
                   )}
-                  <button
-                    type="button"
-                    className="btn btn--outline btn--block"
-                    onClick={() => open(u.id)}
-                  >
-                    Cambiar contraseña
-                  </button>
+                  {deleteError?.id === u.id && (
+                    <p className="form__error">{deleteError.message}</p>
+                  )}
+                  <div className="user-card__actions">
+                    <button
+                      type="button"
+                      className="btn btn--outline"
+                      onClick={() => open(u.id)}
+                    >
+                      Cambiar contraseña
+                    </button>
+                    {u.id !== user?.id && (
+                      <button
+                        type="button"
+                        className="btn btn--danger"
+                        onClick={() => remove(u)}
+                        disabled={deletingId === u.id}
+                      >
+                        {deletingId === u.id ? "Eliminando…" : "Eliminar"}
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </li>

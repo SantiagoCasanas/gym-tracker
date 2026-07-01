@@ -1,5 +1,5 @@
 export type { User, UserRole, AdminUser } from "./User";
-export type { BodySection } from "./BodySection";
+export type { BodySection, SectionCategory } from "./BodySection";
 export type { Exercise } from "./Exercise";
 export type { SetLog } from "./SetLog";
 export type { BodyWeightLog } from "./BodyWeightLog";
