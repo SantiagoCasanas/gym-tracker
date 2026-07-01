@@ -1,13 +1,13 @@
-# Render Blueprint — Gym Tracker (Postgres + API + SPA)
+# Render Blueprint — Gym Tracker (API + SPA)  ·  Base de datos: Neon (externa)
 # Docs: https://render.com/docs/blueprint-spec
 #
+# La base de datos NO se crea en Render (su free expira a los 30 días).
+# Se usa Neon (https://neon.tech, Postgres gratis persistente): crea la BD ahí,
+# copia la connection string y pégala como DATABASE_URL en el servicio API.
+#
 # On first deploy, set the sync:false env vars in the Render dashboard
-# (admin credentials, SMTP, the frontend/backend URLs). DATABASE_URL and
-# JWT_SECRET are provisioned automatically.
-
-databases:
-  - name: gym-tracker-db
-    plan: free
+# (DATABASE_URL de Neon, admin credentials, SMTP, y las URLs frontend/backend).
+# JWT_SECRET se genera automáticamente.
 
 services:
   # --- Backend API (Node + Express + Prisma) ---
@@ -20,10 +20,10 @@ services:
     startCommand: node dist/index.js
     healthCheckPath: /health
     envVars:
+      # Connection string de Neon (Dashboard → Connection Details → "Prisma"/URI).
+      # Debe terminar en ?sslmode=require
       - key: DATABASE_URL
-        fromDatabase:
-          name: gym-tracker-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       # Set these in the dashboard after the first deploy.
