@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Role is stored as a string ("ADMIN" | "MEMBER").
+// Allowed values are enforced in application code (see src/lib/roles.ts).
+
+// Binary photo storage. Photos live in the database (not on disk) so they
+// survive Render's ephemeral filesystem. Served publicly via GET /photos/:id.
+model Photo {
+  id        String   @id @default(uuid())
+  data      Bytes
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  exercises Exercise[]
+  users     User[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("MEMBER")
+  age          Int?
+  gender       String?
+  avatarId     String?
+  createdAt    DateTime @default(now())
+
+  avatar         Photo?  @relation(fields: [avatarId], references: [id])
+  sections       BodySection[]
+  exercises      Exercise[]
+  setLogs        SetLog[]
+  bodyWeightLogs BodyWeightLog[]
+  invitationsSent Invitation[] @relation("InvitedBy")
+}
+
+model Invitation {
+  id          String    @id @default(cuid())
+  email       String
+  token       String    @unique
+  role        String    @default("MEMBER")
+  invitedById String
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  invitedBy User @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([email])
+}
+
+model BodySection {
+  id        String  @id @default(cuid())
+  name      String
+  isDefault Boolean @default(false)
+  userId    String?
+
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises Exercise[]
+
+  @@index([userId])
+}
+
+model Exercise {
+  id        String   @id @default(cuid())
+  userId    String
+  sectionId String
+  name      String
+  photoId   String?
+  createdAt DateTime @default(now())
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section BodySection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  photo   Photo?      @relation(fields: [photoId], references: [id])
+  setLogs SetLog[]
+
+  @@index([userId])
+  @@index([sectionId])
+}
+
+model SetLog {
+  id         String   @id @default(cuid())
+  userId     String
+  exerciseId String
+  date       DateTime @default(now())
+  weight     Float
+  reps       Int
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([exerciseId])
+}
+
+model BodyWeightLog {
+  id     String   @id @default(cuid())
+  userId String
+  date   DateTime @default(now())
+  weight Float
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

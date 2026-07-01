@@ -1,0 +1,26 @@
+# dependencies
+node_modules
+
+# build output
+dist
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# ts build info
+*.tsbuildinfo
+
+# env (NUNCA subir secretos; .env.example sí se versiona)
+.env
+.env.local
+.env.*.local
+
+# dev-team runtime (rutas/credenciales locales)
+.claude/dev-team/PROJECT_CONTEXT.md
+.claude/dev-team/PLAN.md
