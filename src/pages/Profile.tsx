@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { authService } from "services/index";
 import { useSession } from "../context/SessionContext";
 import { useTheme } from "../theme/ThemeContext";
+import type { WeightUnit } from "../utils/units";
 import ThemeToggle from "../components/ThemeToggle";
 import Avatar from "../components/Avatar";
 
@@ -13,9 +14,30 @@ function genderLabel(gender: string | null): string | null {
 }
 
 export default function Profile() {
-  const { user, logout } = useSession();
+  const { user, updateUser, logout } = useSession();
   const { theme } = useTheme();
   const navigate = useNavigate();
+
+  // Preferencia de unidad de peso (kg/lb).
+  const unit: WeightUnit = user?.unit ?? "kg";
+  const [unitSaving, setUnitSaving] = useState(false);
+  const [unitError, setUnitError] = useState<string | null>(null);
+
+  async function changeUnit(next: WeightUnit) {
+    if (next === unit || unitSaving) return;
+    setUnitError(null);
+    setUnitSaving(true);
+    try {
+      const updated = await authService.updateProfile({ unit: next });
+      updateUser(updated);
+    } catch (err) {
+      setUnitError(
+        err instanceof Error ? err.message : "No se pudo cambiar la unidad."
+      );
+    } finally {
+      setUnitSaving(false);
+    }
+  }
 
   // Cambio de la propia contraseña.
   const [currentPassword, setCurrentPassword] = useState("");
@@ -132,6 +154,33 @@ export default function Profile() {
           </div>
         </div>
         <ThemeToggle />
+      </div>
+
+      <div className="card setting-row">
+        <div>
+          <div className="setting-row__label">Unidad de peso</div>
+          <div className="muted setting-row__hint">
+            {unitError ?? "Se aplica en todos los pesos de la app."}
+          </div>
+        </div>
+        <div className="toggle">
+          <button
+            type="button"
+            className={`toggle__btn ${unit === "kg" ? "is-active" : ""}`}
+            onClick={() => changeUnit("kg")}
+            disabled={unitSaving}
+          >
+            kg
+          </button>
+          <button
+            type="button"
+            className={`toggle__btn ${unit === "lb" ? "is-active" : ""}`}
+            onClick={() => changeUnit("lb")}
+            disabled={unitSaving}
+          >
+            lb
+          </button>
+        </div>
       </div>
 
       {user?.role === "ADMIN" && (

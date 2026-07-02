@@ -1,5 +1,6 @@
 import { apiFetch, apiUpload } from "../api/client";
 import type { User } from "models/index";
+import type { WeightUnit } from "../utils/units";
 
 /** Respuesta de login / aceptación de invitación: token + usuario. */
 export interface AuthResult {
@@ -12,6 +13,8 @@ export interface ProfileUpdate {
   name?: string;
   age?: number | null;
   gender?: string | null;
+  /** Unidad de peso preferida (kg | lb). Los pesos se guardan siempre en kg. */
+  unit?: WeightUnit;
 }
 
 /** Autenticación y gestión del propio perfil contra la API. */

@@ -1,3 +1,5 @@
+import type { WeightUnit } from "../utils/units";
+
 /** Rol del usuario en la plataforma. */
 export type UserRole = "ADMIN" | "MEMBER";
 
@@ -13,6 +15,8 @@ export interface User {
   gender: string | null;
   /** URL relativa del avatar en el servidor (`/uploads/...`) o null. */
   avatarUrl: string | null;
+  /** Unidad de peso preferida para mostrar/registrar (default "kg"). */
+  unit: WeightUnit;
 }
 
 /** Usuario en el listado de administración (`GET /users`). */

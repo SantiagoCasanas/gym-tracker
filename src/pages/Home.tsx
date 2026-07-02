@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { BodySection, SectionCategory } from "models/index";
-import { sectionService } from "services/index";
+import type {
+  BodySection,
+  ExerciseSearchResult,
+  SectionCategory,
+} from "models/index";
+import { EQUIPMENT_LABELS } from "models/index";
+import { exerciseService, sectionService } from "services/index";
 import { useSession } from "../context/SessionContext";
+import PhotoThumb from "../components/PhotoThumb";
 
 // Icono representativo por sección conocida (fallback genérico).
 const SECTION_ICONS: Record<string, string> = {
@@ -49,6 +55,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Buscador de ejercicios (con debounce ~300ms).
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ExerciseSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  // Guarda el término de la última búsqueda aplicada para el estado "sin resultados".
+  const [searchedTerm, setSearchedTerm] = useState("");
+  // Id incremental para descartar respuestas de peticiones obsoletas (out-of-order).
+  const searchSeq = useRef(0);
+
   const isAdmin = user?.role === "ADMIN";
 
   async function refresh() {
@@ -65,6 +80,37 @@ export default function Home() {
   useEffect(() => {
     void refresh();
   }, []);
+
+  // Búsqueda con debounce: al cambiar `query` esperamos 300ms antes de llamar
+  // a la API. Si `query` queda vacío, ocultamos resultados (volver a secciones).
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setResults([]);
+      setSearchedTerm("");
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const seq = ++searchSeq.current;
+    const timer = window.setTimeout(async () => {
+      try {
+        const found = await exerciseService.search(trimmed);
+        if (seq !== searchSeq.current) return; // respuesta obsoleta
+        setResults(found);
+        setSearchedTerm(trimmed);
+      } catch {
+        if (seq !== searchSeq.current) return;
+        setResults([]);
+        setSearchedTerm(trimmed);
+      } finally {
+        if (seq === searchSeq.current) setSearching(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const isSearching = query.trim().length > 0;
 
   // Agrupa las secciones por categoría, respetando el orden definido y
   // omitiendo las categorías vacías.
@@ -128,7 +174,56 @@ export default function Home() {
         </div>
       </header>
 
-      {loading ? (
+      {/* Buscador de ejercicios */}
+      <div className="search-bar">
+        <span className="search-bar__icon" aria-hidden="true">
+          🔍
+        </span>
+        <input
+          className="input search-bar__input"
+          type="search"
+          placeholder="Buscar ejercicio…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Buscar ejercicio"
+        />
+      </div>
+
+      {isSearching ? (
+        <section className="section-group">
+          {searching && results.length === 0 ? (
+            <p className="muted">Buscando…</p>
+          ) : results.length === 0 && searchedTerm ? (
+            <div className="empty-state">
+              <span className="empty-state__icon">🔍</span>
+              <p>Sin resultados para “{searchedTerm}”.</p>
+            </div>
+          ) : (
+            <ul className="exercise-list">
+              {results.map((r) => (
+                <li key={r.id}>
+                  <button
+                    className="exercise-item"
+                    onClick={() => navigate(`/exercise/${r.id}`)}
+                  >
+                    <PhotoThumb photoUrl={r.photoUrl} size="thumb" />
+                    <span className="exercise-item__body">
+                      <span className="exercise-item__name">{r.name}</span>
+                      <span className="muted exercise-item__section">
+                        {r.sectionName}
+                      </span>
+                    </span>
+                    <span className="badge">
+                      {EQUIPMENT_LABELS[r.equipment ?? "otros"]}
+                    </span>
+                    <span className="exercise-item__chevron">›</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : loading ? (
         <p className="muted">Cargando…</p>
       ) : (
         <>

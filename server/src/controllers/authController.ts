@@ -131,12 +131,17 @@ export async function me(req: Request, res: Response): Promise<void> {
   res.json({ user: req.user });
 }
 
-// PUT /auth/profile (requireAuth) { name?, age?, gender? }
+// PUT /auth/profile (requireAuth) { name?, age?, gender?, unit? }
 export async function updateProfile(req: Request, res: Response): Promise<void> {
   const userId = req.user!.id;
-  const { name, age, gender } = req.body ?? {};
+  const { name, age, gender, unit } = req.body ?? {};
 
-  const data: { name?: string; age?: number | null; gender?: string | null } = {};
+  const data: {
+    name?: string;
+    age?: number | null;
+    gender?: string | null;
+    unit?: string;
+  } = {};
 
   if (name !== undefined) {
     const trimmed = String(name).trim();
@@ -171,6 +176,17 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
       }
       data.gender = g;
     }
+  }
+
+  // Weight display unit. Weights stay stored in kg; this is only a display pref.
+  // Design choice: an explicitly-provided invalid value is a 400 (consistent
+  // with the other fields above); omitting `unit` leaves it unchanged.
+  if (unit !== undefined) {
+    if (unit !== "kg" && unit !== "lb") {
+      res.status(400).json({ error: "unit debe ser kg o lb" });
+      return;
+    }
+    data.unit = unit;
   }
 
   const user = await prisma.user.update({ where: { id: userId }, data });

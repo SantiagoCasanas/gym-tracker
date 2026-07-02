@@ -1,5 +1,5 @@
 import { apiFetch, apiUpload } from "../api/client";
-import type { Exercise } from "models/index";
+import type { Equipment, Exercise, ExerciseSearchResult } from "models/index";
 
 /** Gestión de ejercicios por sección, incluida la foto de máquina (multipart). */
 export const exerciseService = {
@@ -10,17 +10,42 @@ export const exerciseService = {
 
   /**
    * Crea un ejercicio en una sección. Si se pasa un File/Blob, sube la foto
-   * como multipart (`name` + `photo`).
+   * como multipart (`name` + `equipment` + `photo?`).
    */
   async create(
     sectionId: string,
     name: string,
+    equipment: Equipment,
     photo?: Blob
   ): Promise<Exercise> {
     const form = new FormData();
     form.append("name", name);
+    form.append("equipment", equipment);
     if (photo) form.append("photo", photo, "photo.jpg");
     return apiUpload<Exercise>(`/sections/${sectionId}/exercises`, form);
+  },
+
+  /** Edita nombre y/o equipamiento de un ejercicio (`PUT /exercises/:id`). */
+  async update(
+    id: string,
+    changes: { name?: string; equipment?: Equipment }
+  ): Promise<Exercise> {
+    return apiFetch<Exercise>(`/exercises/${id}`, {
+      method: "PUT",
+      json: changes,
+    });
+  },
+
+  /**
+   * Busca ejercicios del usuario por palabras (AND, case-insensitive).
+   * `q` vacío devuelve []. Cada match incluye la sección de origen.
+   */
+  async search(q: string): Promise<ExerciseSearchResult[]> {
+    const trimmed = q.trim();
+    if (!trimmed) return [];
+    return apiFetch<ExerciseSearchResult[]>(
+      `/exercises?q=${encodeURIComponent(trimmed)}`
+    );
   },
 
   /** Devuelve un ejercicio por id. */

@@ -28,6 +28,9 @@ model User {
   name         String
   passwordHash String?
   role         String   @default("MEMBER")
+  // Preferred weight display unit: kg | lb. Weights are always STORED in kg;
+  // this only controls how the frontend renders/collects them.
+  unit         String   @default("kg")
   age          Int?
   gender       String?
   avatarId     String?
@@ -76,6 +79,8 @@ model Exercise {
   userId    String
   sectionId String
   name      String
+  // Equipment classification: maquina | mancuerna_barra | libre | otros
+  equipment String   @default("otros")
   photoId   String?
   createdAt DateTime @default(now())
 

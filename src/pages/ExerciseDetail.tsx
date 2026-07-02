@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { Exercise, ProgressPoint, SetLog } from "models/index";
+import type { Equipment, Exercise, ProgressPoint, SetLog } from "models/index";
+import { EQUIPMENT_LABELS, EQUIPMENT_OPTIONS } from "models/index";
 import { exerciseService, setLogService } from "services/index";
+import { useSession } from "../context/SessionContext";
+import {
+  formatWeight,
+  fromKg,
+  roundWeight,
+  toKg,
+  unitLabel,
+  type WeightUnit,
+} from "../utils/units";
 import PhotoThumb from "../components/PhotoThumb";
 import PhotoInput from "../components/PhotoInput";
 import LineChart, { type ChartPoint } from "../components/LineChart";
@@ -24,6 +34,8 @@ function formatDateTime(iso: string): string {
 export default function ExerciseDetail() {
   const { exerciseId = "" } = useParams();
   const navigate = useNavigate();
+  const { user } = useSession();
+  const unit: WeightUnit = user?.unit ?? "kg";
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [logs, setLogs] = useState<SetLog[]>([]);
@@ -34,6 +46,16 @@ export default function ExerciseDetail() {
   const [reps, setReps] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [metric, setMetric] = useState<Metric>("bestWeight");
+
+  // Unidad con la que se muestra la gráfica (kg por defecto; toggle a lb).
+  const [chartUnit, setChartUnit] = useState<WeightUnit>("kg");
+
+  // Modo edición del ejercicio (nombre + equipamiento).
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEquipment, setEditEquipment] = useState<Equipment>("otros");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   async function refresh() {
     try {
@@ -63,7 +85,7 @@ export default function ExerciseDetail() {
     const w = Number(weight);
     const r = Number(reps);
     if (!Number.isFinite(w) || w <= 0) {
-      setError("Ingresa un peso válido (kg).");
+      setError(`Ingresa un peso válido (${unitLabel(unit)}).`);
       return;
     }
     if (!Number.isInteger(r) || r <= 0) {
@@ -71,7 +93,8 @@ export default function ExerciseDetail() {
       return;
     }
     try {
-      await setLogService.add(exerciseId, w, r);
+      // El input está en la unidad del usuario → convertir a kg antes de enviar.
+      await setLogService.add(exerciseId, toKg(w, unit), r);
       setWeight("");
       setReps("");
       await refresh();
@@ -91,10 +114,42 @@ export default function ExerciseDetail() {
     await refresh();
   }
 
-  const chartData: ChartPoint[] = progress.map((p) => ({
-    x: p.date,
-    y: metric === "bestWeight" ? p.bestWeight : Math.round(p.estimated1RM * 10) / 10,
-  }));
+  function startEdit() {
+    if (!exercise) return;
+    setEditName(exercise.name);
+    setEditEquipment(exercise.equipment ?? "otros");
+    setEditError(null);
+    setEditing(true);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setEditError(null);
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      setEditError("Escribe un nombre.");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await exerciseService.update(exerciseId, {
+        name: trimmed,
+        equipment: editEquipment,
+      });
+      setEditing(false);
+      await refresh();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "No se pudo guardar.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  // Valores de la gráfica: el backend los da en kg; convertimos a chartUnit.
+  const chartData: ChartPoint[] = progress.map((p) => {
+    const kg = metric === "bestWeight" ? p.bestWeight : p.estimated1RM;
+    return { x: p.date, y: roundWeight(fromKg(kg, chartUnit)) };
+  });
 
   if (loading) {
     return (
@@ -111,7 +166,75 @@ export default function ExerciseDetail() {
           ‹
         </button>
         <h1>{exercise?.name ?? "Ejercicio"}</h1>
+        {exercise && !editing && (
+          <button
+            type="button"
+            className="btn btn--ghost page__header-action"
+            onClick={startEdit}
+          >
+            Editar
+          </button>
+        )}
       </header>
+
+      {/* Edición de nombre + equipamiento */}
+      {editing ? (
+        <form className="card form" onSubmit={saveEdit}>
+          <h2>Editar ejercicio</h2>
+          <label className="field">
+            <span>Nombre</span>
+            <input
+              className="input"
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <label className="field">
+            <span>Equipamiento</span>
+            <select
+              className="input"
+              value={editEquipment}
+              onChange={(e) => setEditEquipment(e.target.value as Equipment)}
+            >
+              {EQUIPMENT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {editError && <p className="form__error">{editError}</p>}
+          <div className="form__row">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => {
+                setEditing(false);
+                setEditError(null);
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={editSaving}
+            >
+              {editSaving ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        exercise && (
+          <div className="exercise-meta">
+            <span className="badge">
+              {EQUIPMENT_LABELS[exercise.equipment ?? "otros"]}
+            </span>
+          </div>
+        )
+      )}
 
       {/* Foto grande de la máquina */}
       <div className="exercise-photo">
@@ -133,7 +256,7 @@ export default function ExerciseDetail() {
         <h2>Registrar serie</h2>
         <div className="form__grid-2">
           <label className="field">
-            <span>Peso (kg)</span>
+            <span>Peso ({unitLabel(unit)})</span>
             <input
               className="input"
               type="number"
@@ -185,14 +308,30 @@ export default function ExerciseDetail() {
             </button>
           </div>
         </div>
-        {metric === "estimated1RM" && (
+        <div className="card__head">
           <p className="chart-note">
-            Fuerza estimada (1RM): peso máximo estimado para 1 repetición.
+            {metric === "estimated1RM"
+              ? "Fuerza estimada (1RM): peso máximo estimado para 1 repetición."
+              : ""}
           </p>
-        )}
+          <div className="toggle">
+            <button
+              className={`toggle__btn ${chartUnit === "kg" ? "is-active" : ""}`}
+              onClick={() => setChartUnit("kg")}
+            >
+              kg
+            </button>
+            <button
+              className={`toggle__btn ${chartUnit === "lb" ? "is-active" : ""}`}
+              onClick={() => setChartUnit("lb")}
+            >
+              lb
+            </button>
+          </div>
+        </div>
         <LineChart
           data={chartData}
-          unit="kg"
+          unit={unitLabel(chartUnit)}
           emptyLabel="Registra al menos una serie para ver tu progreso."
         />
       </section>
@@ -208,11 +347,11 @@ export default function ExerciseDetail() {
               <li key={log.id} className="log-item">
                 <div className="log-item__main">
                   <span className="log-item__weight">
-                    {log.weight} kg × {log.reps}
+                    {formatWeight(log.weight, unit)} × {log.reps}
                   </span>
                   <span className="log-item__meta">
                     {formatDateTime(log.date)} · Fuerza est. (1RM) ≈{" "}
-                    {epley1RM(log.weight, log.reps).toFixed(1)} kg
+                    {formatWeight(epley1RM(log.weight, log.reps), unit)}
                   </span>
                 </div>
                 <button

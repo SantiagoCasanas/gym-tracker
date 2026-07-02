@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { BodySection, Exercise } from "models/index";
+import type { BodySection, Equipment, Exercise } from "models/index";
+import { EQUIPMENT_LABELS, EQUIPMENT_OPTIONS, EQUIPMENT_ORDER } from "models/index";
 import { exerciseService, sectionService } from "services/index";
 import PhotoInput from "../components/PhotoInput";
 import PhotoThumb from "../components/PhotoThumb";
@@ -15,6 +16,7 @@ export default function SectionDetail() {
 
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
+  const [equipment, setEquipment] = useState<Equipment>("maquina");
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -39,6 +41,16 @@ export default function SectionDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionId]);
 
+  // Agrupa los ejercicios por equipamiento respetando el orden canónico y
+  // omitiendo los grupos vacíos (mismo patrón que Home con las categorías).
+  const grouped = useMemo(() => {
+    return EQUIPMENT_ORDER.map((eq) => ({
+      equipment: eq,
+      label: EQUIPMENT_LABELS[eq],
+      items: exercises.filter((ex) => (ex.equipment ?? "otros") === eq),
+    })).filter((g) => g.items.length > 0);
+  }, [exercises]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -49,8 +61,14 @@ export default function SectionDetail() {
     }
     setSaving(true);
     try {
-      await exerciseService.create(sectionId, trimmed, photo ?? undefined);
+      await exerciseService.create(
+        sectionId,
+        trimmed,
+        equipment,
+        photo ?? undefined
+      );
       setName("");
+      setEquipment("maquina");
       setPhoto(null);
       setAdding(false);
       await refresh();
@@ -81,20 +99,28 @@ export default function SectionDetail() {
             </div>
           )}
 
-          <ul className="exercise-list">
-            {exercises.map((ex) => (
-              <li key={ex.id}>
-                <button
-                  className="exercise-item"
-                  onClick={() => navigate(`/exercise/${ex.id}`)}
-                >
-                  <PhotoThumb photoUrl={ex.photoUrl} size="thumb" />
-                  <span className="exercise-item__name">{ex.name}</span>
-                  <span className="exercise-item__chevron">›</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {grouped.map((group) => (
+            <section key={group.equipment} className="section-group">
+              <h2 className="section-group__title">{group.label}</h2>
+              <ul className="exercise-list">
+                {group.items.map((ex) => (
+                  <li key={ex.id}>
+                    <button
+                      className="exercise-item"
+                      onClick={() => navigate(`/exercise/${ex.id}`)}
+                    >
+                      <PhotoThumb photoUrl={ex.photoUrl} size="thumb" />
+                      <span className="exercise-item__name">{ex.name}</span>
+                      <span className="badge">
+                        {EQUIPMENT_LABELS[ex.equipment ?? "otros"]}
+                      </span>
+                      <span className="exercise-item__chevron">›</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
 
           {adding ? (
             <form className="card form" onSubmit={submit}>
@@ -109,6 +135,20 @@ export default function SectionDetail() {
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
                 />
+              </label>
+              <label className="field">
+                <span>Equipamiento</span>
+                <select
+                  className="input"
+                  value={equipment}
+                  onChange={(e) => setEquipment(e.target.value as Equipment)}
+                >
+                  {EQUIPMENT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 <span>Foto de la máquina (opcional)</span>

@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import type { BodyWeightLog } from "models/index";
 import type { BodyWeightPoint } from "services/index";
 import { bodyWeightService } from "services/index";
+import { useSession } from "../context/SessionContext";
+import {
+  formatWeight,
+  fromKg,
+  roundWeight,
+  toKg,
+  unitLabel,
+  type WeightUnit,
+} from "../utils/units";
 import LineChart, { type ChartPoint } from "../components/LineChart";
 
 function formatDate(iso: string): string {
@@ -13,12 +22,18 @@ function formatDate(iso: string): string {
 }
 
 export default function BodyWeight() {
+  const { user } = useSession();
+  const unit: WeightUnit = user?.unit ?? "kg";
+
   const [logs, setLogs] = useState<BodyWeightLog[]>([]);
   const [series, setSeries] = useState<BodyWeightPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [weight, setWeight] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Unidad de la gráfica (kg por defecto; toggle a lb).
+  const [chartUnit, setChartUnit] = useState<WeightUnit>("kg");
 
   async function refresh() {
     try {
@@ -44,11 +59,12 @@ export default function BodyWeight() {
     setError(null);
     const w = Number(weight);
     if (!Number.isFinite(w) || w <= 0) {
-      setError("Ingresa un peso válido (kg).");
+      setError(`Ingresa un peso válido (${unitLabel(unit)}).`);
       return;
     }
     try {
-      await bodyWeightService.add(w);
+      // El input está en la unidad del usuario → convertir a kg antes de enviar.
+      await bodyWeightService.add(toKg(w, unit));
       setWeight("");
       await refresh();
     } catch (err) {
@@ -61,9 +77,10 @@ export default function BodyWeight() {
     await refresh();
   }
 
+  // La serie viene en kg; convertimos a la unidad elegida en la gráfica.
   const chartData: ChartPoint[] = series.map((p) => ({
     x: p.date,
-    y: p.weight,
+    y: roundWeight(fromKg(p.weight, chartUnit)),
   }));
 
   return (
@@ -74,7 +91,7 @@ export default function BodyWeight() {
 
       <form className="card form" onSubmit={submit}>
         <label className="field">
-          <span>Registrar peso de hoy (kg)</span>
+          <span>Registrar peso de hoy ({unitLabel(unit)})</span>
           <input
             className="input"
             type="number"
@@ -93,10 +110,26 @@ export default function BodyWeight() {
       </form>
 
       <section className="card">
-        <h2>Evolución</h2>
+        <div className="card__head">
+          <h2>Evolución</h2>
+          <div className="toggle">
+            <button
+              className={`toggle__btn ${chartUnit === "kg" ? "is-active" : ""}`}
+              onClick={() => setChartUnit("kg")}
+            >
+              kg
+            </button>
+            <button
+              className={`toggle__btn ${chartUnit === "lb" ? "is-active" : ""}`}
+              onClick={() => setChartUnit("lb")}
+            >
+              lb
+            </button>
+          </div>
+        </div>
         <LineChart
           data={chartData}
-          unit="kg"
+          unit={unitLabel(chartUnit)}
           emptyLabel="Registra tu peso para ver la evolución."
         />
       </section>
@@ -112,7 +145,9 @@ export default function BodyWeight() {
             {logs.map((log) => (
               <li key={log.id} className="log-item">
                 <div className="log-item__main">
-                  <span className="log-item__weight">{log.weight} kg</span>
+                  <span className="log-item__weight">
+                    {formatWeight(log.weight, unit)}
+                  </span>
                   <span className="log-item__meta">{formatDate(log.date)}</span>
                 </div>
                 <button

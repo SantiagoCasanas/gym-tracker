@@ -10,8 +10,10 @@ import {
 } from "../controllers/sectionController";
 import {
   listExercises,
+  searchExercises,
   createExercise,
   getExercise,
+  updateExercise,
   deleteExercise,
   updateExercisePhoto,
 } from "../controllers/exerciseController";
@@ -45,7 +47,10 @@ router.post(
   upload.single("photo"),
   asyncHandler(createExercise)
 );
+// Search (GET /exercises?q=...) — declared before the :id param route.
+router.get("/exercises", asyncHandler(searchExercises));
 router.get("/exercises/:id", asyncHandler(getExercise));
+router.put("/exercises/:id", asyncHandler(updateExercise));
 router.delete("/exercises/:id", asyncHandler(deleteExercise));
 router.put(
   "/exercises/:id/photo",

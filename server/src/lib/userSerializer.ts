@@ -7,6 +7,7 @@ interface UserRecord {
   email: string;
   name: string;
   role: string;
+  unit: string;
   age: number | null;
   gender: string | null;
   avatarId: string | null;
@@ -22,6 +23,7 @@ export function serializeUser(u: UserRecord): AuthUser {
     email: u.email,
     name: u.name,
     role: u.role,
+    unit: u.unit,
     age: u.age,
     gender: u.gender,
     avatarUrl: photoUrl(u.avatarId),
